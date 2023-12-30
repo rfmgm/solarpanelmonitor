@@ -1,0 +1,76 @@
+rpi wifi access point and solar panel inverter intercept
+
+https://thepi.io/how-to-use-your-raspberry-pi-as-a-wireless-access-point/ everything except bridge br stuff
+
+apt-get install hostapd dnsmasq
+
+
+/etc/rc.local
+add....
+iptables-restore < /etc/iptables.ipv4.nat
+
+#solar power interception :-)
+/usr/local/bin/dump.sh > /dev/null 2&>1 &
+
+#bodge to get wifi access point up
+/usr/sbin/service hostapd restart
+
+
+/etc/dhcpcd.conf
+interface wlan0
+static ip_address=192.168.1.1/24
+denyinterfaces eth0
+denyinterfaces wlan0
+
+/etc/dnsmasq.conf
+interface=wlan0
+        dhcp-range=192.168.1.0,static
+#        dhcp-range=192.168.1.10,192.168.1.20,255.255.255.0,24h
+
+dhcp-host=c8:93:46:31:ea:a4,192.168.1.11
+
+dhcp-ignore=tag:!known
+
+
+/etc/hostapd.conf
+interface=wlan0
+#bridge=br0
+hw_mode=g
+channel=7
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP
+ssid=solar
+wpa_passphrase=XXXX
+
+/etc/default/hostapd
+DAEMON_CONF="/etc/hostapd/hostapd.conf"
+
+/etc/sysctl.conf
+net.ipv4.ip_forward=1
+
+
+iptables
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+sudo sh -c "iptables-save > /etc/iptables.ipv4.nat"
+iptables-restore < /etc/iptables.ipv4.nat
+in rc.local
+
+no bridge stuff
+
+
+#/bin/bash
+#/usr/local/bin/dump.sh
+/usr/bin/tcpdump -A -U -w /home/bob/solarhttp-%Y%m%d-%H%M%S.pcap -G 60 -Z bob -z /usr/local/bin/dumpsession.sh -iwlan0 port 80 and 
+host 192.168.1.11 
+
+
+#!/bin/bash
+#/usr/local/bin/dumpsession.sh
+/usr/bin/tcpdump -r $1  -A --print | /usr/bin/grep uploadsn  | /usr/bin/awk -F, '{print $7, $9, "v=" $10, "generationpower=" $11, $
+12, $14, "panelpower=" $16 }' >> /home/bob/solarlog
+
